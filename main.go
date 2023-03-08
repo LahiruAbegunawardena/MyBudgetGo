@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -31,6 +30,13 @@ type UserInfoChanged struct {
 		LastName   string   `json:"last_name"`
 		TimeZoneId string   `json:"time_zone_id"`
 	} `json:"payload"`
+}
+
+type UpdateUserData struct {
+	Email      string `json:"email"`
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	TimeZoneId string `json:"time_zone_id"`
 }
 
 type GitUser struct {
@@ -216,7 +222,7 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 	}
 	// json.NewEncoder(w).Encode(selectedGitUser)
-
+	userInfoChanged = UserInfoChanged{}
 	createUserInfoChanged(w, selectedGitUser)
 
 }
@@ -263,18 +269,18 @@ func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser) {
 	userInfoChanged.Meta.CreatedAt = time.Now().UnixNano()
 	userInfoChanged.Payload.Id = gitUser.Id
 	userInfoChanged.Payload.Username = gitUser.Login
-	userInfoChanged.Payload.Email = gitUser.Email
+	// userInfoChanged.Payload.Email = gitUser.Email
 	// userInfoChanged.Payload.TimeZoneId =
 
-	names := strings.Split(gitUser.Name, " ")
-	if len(names) > 1 {
-		userInfoChanged.Payload.FirstName = names[0]
-		userInfoChanged.Payload.LastName = names[1]
-	}
-	if len(names) == 1 {
-		userInfoChanged.Payload.FirstName = gitUser.Name
-		userInfoChanged.Payload.LastName = ""
-	}
+	// names := strings.Split(gitUser.Name, " ")
+	// if len(names) > 1 {
+	// 	userInfoChanged.Payload.FirstName = names[0]
+	// 	userInfoChanged.Payload.LastName = names[1]
+	// }
+	// if len(names) == 1 {
+	// 	userInfoChanged.Payload.FirstName = gitUser.Name
+	// 	userInfoChanged.Payload.LastName = ""
+	// }
 
 	for _, follower := range userFollowers {
 		userInfoChanged.Payload.Followers = append(userInfoChanged.Payload.Followers, follower.Login)
@@ -290,9 +296,37 @@ func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser) {
 func updateUser(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: updateUser")
 
+	userInfoChanged = UserInfoChanged{}
+	var updateUserData UpdateUserData
+	json.NewDecoder(r.Body).Decode(&updateUserData)
+	// json.NewEncoder(w).Encode(updateUserData)
+
 	w.Header().Set("Content-Type", "application/json")
 
-	// json.NewEncoder(w).Encode(users)
+	params := mux.Vars(r)
+
+	resp, err := http.Get(usersUrl + "/" + params["user_id"])
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// assigning user that need to update to selectedGitUser
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	err = json.Unmarshal(body, &selectedGitUser)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	userInfoChanged.Payload.Email = updateUserData.Email
+	userInfoChanged.Payload.FirstName = updateUserData.FirstName
+	userInfoChanged.Payload.LastName = updateUserData.LastName
+	userInfoChanged.Payload.TimeZoneId = updateUserData.TimeZoneId
+
+	createUserInfoChanged(w, selectedGitUser)
 }
 
 func produceUser(w http.ResponseWriter, r *http.Request) {
