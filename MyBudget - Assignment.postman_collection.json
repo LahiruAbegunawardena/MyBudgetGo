@@ -1,0 +1,51 @@
+{
+	"variables": [],
+	"info": {
+		"name": "MyBudget - Assignment",
+		"_postman_id": "919dee7d-a691-69ce-1665-99b05b94fe93",
+		"description": "",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Update",
+			"request": {
+				"url": "http://localhost:8081/users/noelyahan",
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"description": ""
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\t\"email\": \"foobar@mybudget.com.au\",\r\n\t\"first_name\": \"Foo\",\r\n\t\"last_name\": \"Bar \",\r\n\t\"time_zone_id\": \"Australia/Perth\"\r\n}"
+				},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Produce",
+			"request": {
+				"url": "http://localhost:8081/produce/noelyahan",
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"description": ""
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\t\r\n}"
+				},
+				"description": ""
+			},
+			"response": []
+		}
+	]
+}
