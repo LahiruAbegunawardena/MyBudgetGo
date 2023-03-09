@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -193,41 +194,12 @@ func main() {
 
 func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/users/{user_id}", getUser).Methods("GET")
-	myRouter.HandleFunc("/users/{user_id}", updateUser).Methods("PUT")
 	myRouter.HandleFunc("/produce/{user_id}", produceUser).Methods("POST")
+	myRouter.HandleFunc("/users/{user_id}", updateUser).Methods("PUT")
 	log.Fatal(http.ListenAndServe(":8081", myRouter))
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Endpoint Hit: getUser")
-
-	w.Header().Set("Content-Type", "application/json")
-
-	params := mux.Vars(r)
-
-	resp, err := http.Get(usersUrl + "/" + params["user_id"])
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	//We Read the response body on the line below.
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	err = json.Unmarshal(body, &selectedGitUser)
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-	// json.NewEncoder(w).Encode(selectedGitUser)
-	userInfoChanged = UserInfoChanged{}
-	createUserInfoChanged(w, selectedGitUser)
-
-}
-
-func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser) {
+func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser, fromUpdate bool) {
 
 	// get followers list
 	resp, err := http.Get(usersUrl + "/" + gitUser.Login + "/followers")
@@ -269,18 +241,20 @@ func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser) {
 	userInfoChanged.Meta.CreatedAt = time.Now().UnixNano()
 	userInfoChanged.Payload.Id = gitUser.Id
 	userInfoChanged.Payload.Username = gitUser.Login
-	// userInfoChanged.Payload.Email = gitUser.Email
-	// userInfoChanged.Payload.TimeZoneId =
 
-	// names := strings.Split(gitUser.Name, " ")
-	// if len(names) > 1 {
-	// 	userInfoChanged.Payload.FirstName = names[0]
-	// 	userInfoChanged.Payload.LastName = names[1]
-	// }
-	// if len(names) == 1 {
-	// 	userInfoChanged.Payload.FirstName = gitUser.Name
-	// 	userInfoChanged.Payload.LastName = ""
-	// }
+	if !fromUpdate {
+		userInfoChanged.Payload.Email = gitUser.Email
+
+		names := strings.Split(gitUser.Name, " ")
+		if len(names) > 1 {
+			userInfoChanged.Payload.FirstName = names[0]
+			userInfoChanged.Payload.LastName = names[1]
+		}
+		if len(names) == 1 {
+			userInfoChanged.Payload.FirstName = gitUser.Name
+			userInfoChanged.Payload.LastName = ""
+		}
+	}
 
 	for _, follower := range userFollowers {
 		userInfoChanged.Payload.Followers = append(userInfoChanged.Payload.Followers, follower.Login)
@@ -326,9 +300,32 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	userInfoChanged.Payload.LastName = updateUserData.LastName
 	userInfoChanged.Payload.TimeZoneId = updateUserData.TimeZoneId
 
-	createUserInfoChanged(w, selectedGitUser)
+	createUserInfoChanged(w, selectedGitUser, true)
 }
 
 func produceUser(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: produceUser")
+
+	w.Header().Set("Content-Type", "application/json")
+
+	params := mux.Vars(r)
+
+	resp, err := http.Get(usersUrl + "/" + params["user_id"])
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//We Read the response body on the line below.
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	err = json.Unmarshal(body, &selectedGitUser)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// json.NewEncoder(w).Encode(selectedGitUser)
+	userInfoChanged = UserInfoChanged{}
+	createUserInfoChanged(w, selectedGitUser, false)
 }
