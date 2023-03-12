@@ -1,16 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/Shopify/sarama"
+	"github.com/gorilla/mux"
+	uuid "github.com/satori/go.uuid"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gorilla/mux"
-	uuid "github.com/satori/go.uuid"
 )
 
 type UserInfoChanged struct {
@@ -264,6 +265,8 @@ func createUserInfoChanged(w http.ResponseWriter, gitUser GitUser, fromUpdate bo
 		userInfoChanged.Payload.Repos = append(userInfoChanged.Payload.Followers, repo.Name)
 	}
 
+	PublishData(userInfoChanged)
+
 	json.NewEncoder(w).Encode(userInfoChanged)
 }
 
@@ -299,7 +302,6 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	userInfoChanged.Payload.FirstName = updateUserData.FirstName
 	userInfoChanged.Payload.LastName = updateUserData.LastName
 	userInfoChanged.Payload.TimeZoneId = updateUserData.TimeZoneId
-
 	createUserInfoChanged(w, selectedGitUser, true)
 }
 
@@ -328,4 +330,38 @@ func produceUser(w http.ResponseWriter, r *http.Request) {
 	// json.NewEncoder(w).Encode(selectedGitUser)
 	userInfoChanged = UserInfoChanged{}
 	createUserInfoChanged(w, selectedGitUser, false)
+}
+
+func PublishData(userinfo UserInfoChanged) {
+	brokerAddrs := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Version = sarama.V2_5_0_0
+	admin, err := sarama.NewClusterAdmin(brokerAddrs, config)
+	if err != nil {
+		log.Fatal("Error while creating cluster admin: ", err.Error())
+	}
+	defer admin.Close()
+
+	admin.CreateTopic("users", &sarama.TopicDetail{
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	}, false)
+
+	config = sarama.NewConfig()
+	config.Producer.Partitioner = sarama.NewRandomPartitioner
+	config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Producer.Return.Successes = true
+	producer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, config)
+	if err != nil {
+		log.Fatal("Error while creating producer: ", err.Error())
+	}
+	UserInfobytes := new(bytes.Buffer)
+	json.NewEncoder(UserInfobytes).Encode(userinfo)
+
+	msg := &sarama.ProducerMessage{Topic: "users", Key: sarama.StringEncoder(userinfo.Meta.EventId), Value: sarama.ByteEncoder(UserInfobytes.Bytes())}
+	partition, offset, err := producer.SendMessage(msg)
+	if err != nil {
+		log.Fatal("Error while creating cluster admin: ", err.Error())
+	}
+	log.Printf("Sent to partion %v and the offset is %v", partition, offset)
 }
